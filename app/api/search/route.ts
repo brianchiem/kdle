@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { searchKpopTracks, searchTracksRaw } from "@/lib/spotify";
 import type { SpotifyTrack } from "@/lib/spotify";
+import { supabaseServer } from "@/lib/supabaseClient";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -26,15 +27,43 @@ export async function GET(req: Request) {
   // Try a few likely markets to improve relevance
   const markets = ["KR", "US", "JP"];
 
-  const seen = new Set<string>();
-  const out: any[] = [];
+  const seenIds = new Set<string>();
+  const seenLabels = new Set<string>();
+  const out: SpotifyTrack[] = [];
 
   try {
+    // Curated-first: search in our Supabase songs table
+    const sb = supabaseServer();
+    const like = `%${q.replace(/[_%]/g, "")}%`;
+    const { data: curated } = await sb
+      .from("songs")
+      .select("spotify_id, title, artist, preview_url, album_image")
+      .or(`title.ilike.${like},artist.ilike.${like}`)
+      .limit(limit);
+    if (curated && curated.length) {
+      for (const row of curated) {
+        const label = `${row.artist} - ${row.title}`;
+        if (seenLabels.has(label)) continue;
+        seenLabels.add(label);
+        out.push({
+          id: row.spotify_id,
+          name: row.title,
+          artists: [{ name: row.artist }],
+          preview_url: row.preview_url ?? null,
+          album: { images: row.album_image ? [{ url: row.album_image, width: 640, height: 640 }] : [] },
+        } as SpotifyTrack);
+        if (out.length >= limit) break;
+      }
+    }
+
     // First pass: simple k-pop search
     const kpopFirst = await searchKpopTracks(q, limit);
     for (const t of kpopFirst) {
-      if (seen.has(t.id)) continue;
-      seen.add(t.id);
+      if (seenIds.has(t.id)) continue;
+      const lbl = `${t.artists.map((a: { name: string }) => a.name).join(", ")} - ${t.name}`;
+      if (seenLabels.has(lbl)) continue;
+      seenIds.add(t.id);
+      seenLabels.add(lbl);
       out.push(t);
       if (out.length >= limit) break;
     }
@@ -44,8 +73,11 @@ export async function GET(req: Request) {
         for (const m of markets) {
           const batch = await searchTracksRaw(query, limit, m);
           for (const t of batch) {
-            if (seen.has(t.id)) continue;
-            seen.add(t.id);
+            if (seenIds.has(t.id)) continue;
+            const lbl = `${t.artists.map((a: { name: string }) => a.name).join(", ")} - ${t.name}`;
+            if (seenLabels.has(lbl)) continue;
+            seenIds.add(t.id);
+            seenLabels.add(lbl);
             out.push(t);
             if (out.length >= limit) break;
           }

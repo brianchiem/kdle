@@ -276,6 +276,32 @@ export default function Home() {
               Env template at <code className="px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">env.example</code>
             </li>
           </ul>
+          <div className="mt-4">
+            <button
+              type="button"
+              className="text-xs rounded border border-foreground/15 px-3 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={async () => {
+                try {
+                  await fetch("/api/game/reset", { method: "POST" });
+                  // Reload today's state
+                  setLoading(true);
+                  const res = await fetch("/api/game/today", { cache: "no-store" });
+                  const json = await res.json();
+                  setToday({ date: json.date, preview_url: json.preview_url ?? null, album_image: json.album_image ?? null, max_guesses: json.max_guesses ?? 6 });
+                  setGuesses([]);
+                  setHint(null);
+                  setRemaining(json.max_guesses ?? 6);
+                  setError(null);
+                } catch (e: any) {
+                  setError(e?.message || "Failed to reset");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Reset today (dev)
+            </button>
+          </div>
         </section>
       </main>
 
