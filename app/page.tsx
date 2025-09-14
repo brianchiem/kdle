@@ -1,5 +1,5 @@
 "use client";
-import { Play, Pause, Sparkles } from "lucide-react";
+import { Play, Pause, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
@@ -12,6 +12,9 @@ export default function Home() {
   const [guesses, setGuesses] = useState<{ text: string; correct: boolean }[]>([]);
   const [hint, setHint] = useState<{ level: number; text: string } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<{ id: string; label: string; album_image: string | null; preview_url: string | null }[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   // Load today's challenge
   useEffect(() => {
@@ -25,6 +28,10 @@ export default function Home() {
         const json = await res.json();
         if (!ignore) {
           setToday({ date: json.date, preview_url: json.preview_url ?? null, album_image: json.album_image ?? null, max_guesses: json.max_guesses ?? 6 });
+          // Reset local game UI state
+          setGuesses([]);
+          setHint(null);
+          setRemaining(json.max_guesses ?? 6);
         }
       } catch (e: any) {
         if (!ignore) setError(e?.message || "Failed to load");
@@ -97,12 +104,17 @@ export default function Home() {
       const json = await res.json();
       setGuesses((g) => [...g, { text: guess, correct: json.correct }]);
       setGuess("");
+      if (typeof json.remaining_guesses === "number") setRemaining(json.remaining_guesses);
       // Fetch hint if unlocked
       if (!json.correct && json.next_hint_level > 0) {
         const hres = await fetch("/api/game/hint", { cache: "no-store" });
         if (hres.ok) {
           const hjson = await hres.json();
-          setHint({ level: hjson.hint_level, text: hjson.hint });
+          let text = hjson.hint;
+          if (json.artist_match) {
+            text = `Artist is correct! ${text}`;
+          }
+          setHint({ level: hjson.hint_level, text });
         }
       }
       if (json.correct) {
@@ -114,6 +126,28 @@ export default function Home() {
       setSubmitting(false);
     }
   }
+
+  // Autocomplete: debounce search as user types
+  useEffect(() => {
+    let t: any;
+    if (!guess.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    t = setTimeout(async () => {
+      try {
+        setSuggestLoading(true);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(guess)}&limit=5`, { cache: "no-store" });
+        const j = await res.json();
+        setSuggestions(Array.isArray(j.results) ? j.results : []);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [guess]);
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-200 via-white to-indigo-200 dark:from-fuchsia-900/30 dark:via-black dark:to-indigo-900/30">
@@ -157,13 +191,45 @@ export default function Home() {
                 <button
                   type="button"
                   className="rounded-lg border border-foreground/10 bg-foreground text-background px-4 py-2 disabled:opacity-50"
-                  disabled={!guess.trim() || submitting}
+                  disabled={!guess.trim() || submitting || (remaining !== null && remaining <= 0) || (hint?.level === 999)}
                   onClick={submitGuess}
                 >
                   {submitting ? "..." : "Guess"}
                 </button>
               </div>
+              {/* Suggestions dropdown */}
+              {suggestions.length > 0 && (
+                <div className="w-full border border-foreground/10 rounded-lg bg-background/95 shadow-sm divide-y divide-foreground/10">
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-black/5 dark:hover:bg-white/10"
+                      onClick={() => {
+                        setGuess(s.label);
+                        setSuggestions([]);
+                      }}
+                    >
+                      {s.album_image ? (
+                        <img src={s.album_image} alt="cover" className="w-8 h-8 rounded object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-foreground/10" />
+                      )}
+                      <span className="text-sm">{s.label}</span>
+                    </button>
+                  ))}
+                  <div className="flex items-center justify-between px-3 py-2 text-xs text-foreground/60">
+                    <span>{suggestLoading ? "Searching…" : "Top results"}</span>
+                    <button className="inline-flex items-center gap-1" onClick={() => setSuggestions([])}>
+                      <X size={12} /> close
+                    </button>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-foreground/60">{today?.max_guesses ?? 6} guesses total. Hints unlock after each wrong guess.</p>
+              {remaining !== null && (
+                <p className="text-xs text-foreground/70">Remaining guesses: {remaining}</p>
+              )}
 
               {hint && (
                 <div className="w-full rounded-lg border border-fuchsia-300/30 bg-fuchsia-50 dark:bg-fuchsia-900/20 p-3 text-sm">

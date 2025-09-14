@@ -6,6 +6,7 @@ import {
   MAX_GUESSES,
   getTodayDaily,
   isCorrectGuess,
+  isArtistMatch,
   newState,
   nextHintLevel,
 } from "@/lib/game";
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
   }
 
   const correct = isCorrectGuess(parsed.data.guess, daily.title, daily.artist);
+  const artistMatch = !correct && isArtistMatch(parsed.data.guess, daily.artist);
   state.guesses += 1;
   if (correct) {
     state.won = true;
@@ -60,6 +62,7 @@ export async function POST(req: Request) {
     correct,
     remaining_guesses: remaining,
     next_hint_level: state.hintLevel,
+    artist_match: artistMatch,
   });
   resp.cookies.set({
     name: COOKIE_NAME,

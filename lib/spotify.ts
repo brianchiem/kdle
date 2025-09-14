@@ -63,6 +63,18 @@ export async function getTrackById(id: string): Promise<SpotifyTrack | null> {
   return (await res.json()) as SpotifyTrack;
 }
 
+export async function searchTracksRaw(query: string, limit = 5, market?: string): Promise<SpotifyTrack[]> {
+  const token = await getAppAccessToken();
+  const params = new URLSearchParams({ q: query, type: "track", limit: String(limit) });
+  if (market) params.set("market", market);
+  const res = await fetch(`https://api.spotify.com/v1/search?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
+  const json = await res.json();
+  return (json?.tracks?.items ?? []) as SpotifyTrack[];
+}
+
 // Fallback: use the community package 'spotify-preview-finder' when preview_url is unavailable.
 // This runs server-side and uses your SPOTIFY_CLIENT_ID/SECRET from env.
 export async function findPreviewUrls(title: string, artist?: string, limit = 3): Promise<string[]> {

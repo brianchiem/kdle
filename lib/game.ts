@@ -55,8 +55,17 @@ export function isCorrectGuess(guess: string, title: string, artist: string): bo
   const g = normalize(guess);
   const t = normalize(title);
   const a = normalize(artist);
-  // Allow matching either full "artist - title" or just title or just artist+title words present
-  return g === t || g === a || g.includes(t) || g.includes(a) || g.includes(`${a} ${t}`) || g.includes(`${t} ${a}`);
+  // Accept if the title is matched (exact or contained), with or without artist alongside.
+  // Do NOT accept artist-only matches.
+  if (g === t || g.includes(t)) return true;
+  if (g.includes(a) && g.includes(t)) return true;
+  return false;
+}
+
+export function isArtistMatch(guess: string, artist: string): boolean {
+  const g = normalize(guess);
+  const a = normalize(artist);
+  return g === a || g.includes(a);
 }
 
 export type State = {
