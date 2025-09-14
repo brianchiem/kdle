@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { cookies } from "next/headers";
+import {
+  COOKIE_NAME,
+  MAX_GUESSES,
+  getTodayDaily,
+  isCorrectGuess,
+  newState,
+  nextHintLevel,
+} from "@/lib/game";
 
 const GuessSchema = z.object({
   guess: z.string().min(1),
@@ -12,12 +21,52 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // TODO: Compare guess against today's song (Supabase) using normalized title + artist.
-  // Placeholder response follows the PRD shape.
-  const resp = {
-    correct: false,
-    remaining_guesses: 5,
-    next_hint_level: 1,
-  };
-  return NextResponse.json(resp);
+  const daily = await getTodayDaily();
+  if (!daily) {
+    return NextResponse.json({ error: "Today's song not set" }, { status: 404 });
+  }
+
+  const jar = await cookies();
+  let stateRaw = jar.get(COOKIE_NAME)?.value;
+  let state: ReturnType<typeof newState> = newState(daily.date);
+  try {
+    if (stateRaw) {
+      const parsed = JSON.parse(stateRaw);
+      if (parsed?.date === daily.date) state = parsed;
+      else state = newState(daily.date);
+    }
+  } catch {
+    state = newState(daily.date);
+  }
+
+  if (state.won || state.guesses >= MAX_GUESSES) {
+    return NextResponse.json(
+      { error: "No guesses remaining" },
+      { status: 400 }
+    );
+  }
+
+  const correct = isCorrectGuess(parsed.data.guess, daily.title, daily.artist);
+  state.guesses += 1;
+  if (correct) {
+    state.won = true;
+  } else {
+    state.hintLevel = nextHintLevel(state.hintLevel);
+  }
+
+  const remaining = Math.max(0, MAX_GUESSES - state.guesses);
+  const resp = NextResponse.json({
+    correct,
+    remaining_guesses: remaining,
+    next_hint_level: state.hintLevel,
+  });
+  resp.cookies.set({
+    name: COOKIE_NAME,
+    value: JSON.stringify(state),
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24, // 1 day
+  });
+  return resp;
 }

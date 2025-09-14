@@ -62,3 +62,33 @@ export async function getTrackById(id: string): Promise<SpotifyTrack | null> {
   if (!res.ok) return null;
   return (await res.json()) as SpotifyTrack;
 }
+
+// Fallback: use the community package 'spotify-preview-finder' when preview_url is unavailable.
+// This runs server-side and uses your SPOTIFY_CLIENT_ID/SECRET from env.
+export async function findPreviewUrls(title: string, artist?: string, limit = 3): Promise<string[]> {
+  try {
+    // Dynamic import to support CommonJS default export
+    const mod: any = await import("spotify-preview-finder");
+    const finder = mod?.default ?? mod;
+
+    let result: any;
+    if (artist && artist.trim()) {
+      result = await finder(title, artist, limit);
+    } else {
+      // Backward compatible signature: (title, limit)
+      result = await finder(title, limit);
+    }
+    if (result?.success && Array.isArray(result.results)) {
+      const urls: string[] = [];
+      for (const r of result.results) {
+        if (Array.isArray(r.previewUrls)) {
+          for (const u of r.previewUrls) if (u) urls.push(u);
+        }
+      }
+      return urls;
+    }
+  } catch (err) {
+    console.warn("preview-finder fallback failed:", (err as Error)?.message);
+  }
+  return [];
+}
