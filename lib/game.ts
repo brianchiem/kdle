@@ -73,6 +73,17 @@ export function newState(date: string): State {
   return { date, guesses: 0, hintLevel: 0, won: false };
 }
 
+export function sanitizeState(input: any, date: string): State {
+  // Ensure proper types and bounds; reset if corrupted or different date
+  if (!input || typeof input !== "object" || input.date !== date) return newState(date);
+  let guesses = Number(input.guesses);
+  let hintLevel = Number(input.hintLevel);
+  const won = Boolean(input.won);
+  if (!Number.isFinite(guesses) || guesses < 0 || guesses > MAX_GUESSES) guesses = 0;
+  if (!Number.isFinite(hintLevel) || hintLevel < 0 || hintLevel > MAX_HINT_LEVEL) hintLevel = 0;
+  return { date, guesses, hintLevel, won };
+}
+
 export function nextHintLevel(current: number): number {
   return Math.min(current + 1, MAX_HINT_LEVEL);
 }
@@ -83,7 +94,7 @@ export function buildHint(level: number, daily: DailyJoined): { hint_level: numb
     case 1:
       return { hint_level: 1, hint: `Released in ${daily.release_year ?? "????"}` };
     case 2:
-      return { hint_level: 2, hint: daily.album_image ? `Album art (blurred): ${daily.album_image}` : "Album art (blurred): unavailable" };
+      return { hint_level: 2, hint: daily.album_image ? "Album art unlocked (blurred)" : "Album art unavailable" };
     case 3:
       return { hint_level: 3, hint: `Artist: ${daily.artist}` };
     case 4:

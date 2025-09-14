@@ -31,9 +31,10 @@ export async function POST(req: Request) {
   let state: ReturnType<typeof newState> = newState(daily.date);
   try {
     if (stateRaw) {
-      const parsed = JSON.parse(stateRaw);
-      if (parsed?.date === daily.date) state = parsed;
-      else state = newState(daily.date);
+      const parsedCookie = JSON.parse(stateRaw);
+      // sanitize ensures correct date and bounds
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      state = (await import("@/lib/game")).sanitizeState(parsedCookie, daily.date);
     }
   } catch {
     state = newState(daily.date);
