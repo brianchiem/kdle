@@ -16,6 +16,8 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<{ id: string; label: string; album_image: string | null; preview_url: string | null }[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; win_rate: number } | null>(null);
+  const [shareText, setShareText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Load today's challenge
   useEffect(() => {
@@ -130,6 +132,26 @@ export default function Home() {
           // Fetch latest stats
           const sres = await fetch("/api/user/stats", { cache: "no-store" });
           if (sres.ok) setStats(await sres.json());
+          // Try to fetch solution (artist + title) now that the user has won
+          let solutionLabel: string | null = null;
+          try {
+            const solRes = await fetch("/api/game/solution", { cache: "no-store" });
+            if (solRes.ok) {
+              const sol = await solRes.json();
+              if (sol?.artist && sol?.title) solutionLabel = `${sol.artist} – ${sol.title}`;
+            }
+          } catch {}
+          // Build share text using server-returned remaining_guesses to avoid stale state
+          const attempts = Math.max(1, (today?.max_guesses ?? 6) - (json.remaining_guesses ?? 0));
+          const total = today?.max_guesses ?? 6;
+          const date = today?.date ?? "";
+          const rows = (attempts > 1 ? new Array(attempts - 1).fill("⬜") : [])
+            .concat(["🟩"]) 
+            .join("\n");
+          const header = solutionLabel
+            ? `K‑Dle ${date} — ${attempts}/${total}`
+            : `K‑Dle ${date} — ${attempts}/${total}`;
+          setShareText(`${header}\n${rows}`);
         } catch {}
       }
     } catch (e: any) {
@@ -239,6 +261,27 @@ export default function Home() {
                       <X size={12} /> close
                     </button>
                   </div>
+                </div>
+              )}
+
+              {shareText && (
+                <div className="w-full mt-3 rounded-lg border border-foreground/10 p-3 text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium">Share your result</div>
+                    <button
+                      className="text-xs rounded border border-foreground/15 px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(shareText);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1500);
+                        } catch {}
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="whitespace-pre-wrap text-foreground/80 text-xs">{shareText}</pre>
                 </div>
               )}
               <p className="text-xs text-foreground/60">{today?.max_guesses ?? 6} guesses total. Hints unlock after each wrong guess.</p>
@@ -358,6 +401,13 @@ export default function Home() {
       <footer className="w-full max-w-3xl px-6 py-8 text-xs text-foreground/60">
         Built with Next.js + Tailwind. © {new Date().getFullYear()} K‑Dle
       </footer>
+
+      {/* Toast */}
+      {copied && (
+        <div className="fixed bottom-6 right-6 rounded-lg bg-foreground text-background px-3 py-2 text-sm shadow-lg">
+          Copied!
+        </div>
+      )}
     </div>
   );
 }
