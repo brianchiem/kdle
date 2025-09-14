@@ -115,3 +115,29 @@ export function buildHint(level: number, daily: DailyJoined): { hint_level: numb
 }
 
 export const COOKIE_NAME = "kdle_state";
+
+export const STATS_COOKIE = "kdle_stats";
+
+export type Stats = {
+  streak: number;
+  longest_streak: number;
+  total_games: number;
+  total_wins: number;
+  last_result_date?: string; // YYYY-MM-DD for when stats were last updated
+};
+
+export function defaultStats(): Stats {
+  return { streak: 0, longest_streak: 0, total_games: 0, total_wins: 0 };
+}
+
+export function sanitizeStats(input: any): Stats {
+  if (!input || typeof input !== "object") return defaultStats();
+  const s: Stats = defaultStats();
+  s.streak = Math.max(0, Number(input.streak) || 0);
+  s.longest_streak = Math.max(0, Number(input.longest_streak) || 0);
+  s.total_games = Math.max(0, Number(input.total_games) || 0);
+  s.total_wins = Math.max(0, Number(input.total_wins) || 0);
+  if (typeof input.last_result_date === "string") s.last_result_date = input.last_result_date;
+  if (s.longest_streak < s.streak) s.longest_streak = s.streak;
+  return s;
+}

@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { STATS_COOKIE, sanitizeStats } from "@/lib/game";
 
 export async function GET() {
-  // TODO: Require auth (Supabase) and fetch user stats from 'user_stats'.
-  const placeholder = {
-    streak: 0,
-    longest_streak: 0,
-    total_games: 0,
-    win_rate: 0,
+  const jar = await cookies();
+  const raw = jar.get(STATS_COOKIE)?.value;
+  const stats = sanitizeStats(raw ? JSON.parse(raw) : null);
+  const res = {
+    streak: stats.streak,
+    longest_streak: stats.longest_streak,
+    total_games: stats.total_games,
+    win_rate: stats.total_games ? stats.total_wins / stats.total_games : 0,
   };
-  return NextResponse.json(placeholder);
+  return NextResponse.json(res);
 }

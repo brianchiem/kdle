@@ -15,6 +15,7 @@ export default function Home() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<{ id: string; label: string; album_image: string | null; preview_url: string | null }[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; win_rate: number } | null>(null);
 
   // Load today's challenge
   useEffect(() => {
@@ -119,6 +120,17 @@ export default function Home() {
       }
       if (json.correct) {
         setHint({ level: 999, text: "Correct!" });
+        try {
+          // Update cookie-based stats
+          await fetch("/api/game/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ guesses_used: (today?.max_guesses ?? 6) - (remaining ?? 6), won: true }),
+          });
+          // Fetch latest stats
+          const sres = await fetch("/api/user/stats", { cache: "no-store" });
+          if (sres.ok) setStats(await sres.json());
+        } catch {}
       }
     } catch (e: any) {
       setError(e?.message || "Error submitting guess");
@@ -154,6 +166,9 @@ export default function Home() {
       <header className="w-full max-w-3xl px-6 py-8">
         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-Dle</h1>
         <p className="text-sm text-foreground/70 mt-1">Guess the K-pop song of the day</p>
+        <div className="mt-2">
+          <a href="/auth" className="text-xs underline text-foreground/70 hover:text-foreground">Sign in</a>
+        </div>
       </header>
 
       <main className="w-full max-w-3xl px-6 flex-1 flex flex-col gap-6">
@@ -244,6 +259,41 @@ export default function Home() {
                       />
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Stats panel */}
+              <div className="w-full flex items-center gap-3">
+                <button
+                  className="text-xs rounded border border-foreground/15 px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+                  onClick={async () => {
+                    try {
+                      const sres = await fetch("/api/user/stats", { cache: "no-store" });
+                      if (sres.ok) setStats(await sres.json());
+                    } catch {}
+                  }}
+                >
+                  View stats
+                </button>
+              </div>
+              {stats && (
+                <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="rounded-lg border border-foreground/10 p-3">
+                    <div className="text-foreground/60">Streak</div>
+                    <div className="text-lg font-semibold">{stats.streak}</div>
+                  </div>
+                  <div className="rounded-lg border border-foreground/10 p-3">
+                    <div className="text-foreground/60">Longest</div>
+                    <div className="text-lg font-semibold">{stats.longest_streak}</div>
+                  </div>
+                  <div className="rounded-lg border border-foreground/10 p-3">
+                    <div className="text-foreground/60">Games</div>
+                    <div className="text-lg font-semibold">{stats.total_games}</div>
+                  </div>
+                  <div className="rounded-lg border border-foreground/10 p-3">
+                    <div className="text-foreground/60">Win rate</div>
+                    <div className="text-lg font-semibold">{Math.round((stats.win_rate || 0) * 100)}%</div>
+                  </div>
                 </div>
               )}
 
