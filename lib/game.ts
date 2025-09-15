@@ -1,5 +1,5 @@
 import { supabaseServer } from "@/lib/supabaseClient";
-import { todayUTC } from "@/lib/date";
+import { todayPST } from "@/lib/date";
 
 export type DailyJoined = {
   date: string; // YYYY-MM-DD
@@ -14,7 +14,7 @@ export type DailyJoined = {
 
 export async function getTodayDaily(): Promise<DailyJoined | null> {
   const supabase = supabaseServer();
-  const date = todayUTC();
+  const date = todayPST();
   const { data, error } = await supabase
     .from("daily_song")
     .select(
