@@ -5,7 +5,7 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 export default function AdminPage() {
   const supabase = supabaseBrowser();
   const [spotifyId, setSpotifyId] = useState("");
-  const [scheduleId, setScheduleId] = useState("");
+  const [selectedSong, setSelectedSong] = useState<string>("");
   const [scheduleDate, setScheduleDate] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +27,11 @@ export default function AdminPage() {
   const [popover, setPopover] = useState<{ date: string; song?: { spotify_id: string; title: string; artist: string; album_image: string | null } } | null>(null);
   const [analytics, setAnalytics] = useState<any>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSpotifySearch, setShowSpotifySearch] = useState(false);
+  const [addId, setAddId] = useState("");
 
   async function refreshCalendar() {
     try {
@@ -130,6 +135,50 @@ export default function AdminPage() {
     } catch {}
   }
 
+  async function searchSpotify() {
+    if (!searchQuery.trim()) return;
+    try {
+      setSearchLoading(true);
+      const res = await fetch('/api/admin/search-spotify', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+        },
+        body: JSON.stringify({ query: searchQuery.trim(), limit: 20 })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Search failed');
+      setSearchResults(json.results || []);
+    } catch (e: any) {
+      setError(e?.message || 'Search failed');
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function addSongFromSearch(track: any) {
+    try {
+      setLoading(true);
+      setError(null);
+      setMessage(null);
+      const res = await fetch("/api/admin/add-song", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+        body: JSON.stringify({ spotify_id: track.spotify_id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Add failed");
+      setMessage(`Added "${track.title}" by ${track.artist}.`);
+      await refresh();
+      await refreshCalendar();
+    } catch (e: any) {
+      setError(e?.message || "Add failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function addSong() {
     if (!spotifyId.trim()) return;
     try {
@@ -176,9 +225,12 @@ export default function AdminPage() {
     }
   }
 
-  async function scheduleToday(id?: string, dateOverride?: string) {
-    const target = (id ?? scheduleId).trim();
-    if (!target) return;
+  async function scheduleToday(spotify_id?: string, date?: string) {
+    const id = spotify_id || selectedSong;
+    if (!id) {
+      setError("Select a song first");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -186,17 +238,19 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-        body: JSON.stringify({ spotify_id: target, date: dateOverride || scheduleDate || undefined }),
+        body: JSON.stringify({ spotify_id: id, date: date || scheduleDate || undefined }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Schedule failed");
-      setMessage(`Scheduled ${target} for ${json.date}.`);
-      setScheduleId("");
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || "Failed to schedule");
+      const songInfo = data?.songs?.find(s => s.spotify_id === id);
+      const songName = songInfo ? `${songInfo.artist} - ${songInfo.title}` : id;
+      setMessage(`Scheduled "${songName}" for ${date || scheduleDate || "today"}`);
+      setSelectedSong("");
       setScheduleDate("");
       await refresh();
       await refreshCalendar();
     } catch (e: any) {
-      setError(e?.message || "Schedule failed");
+      setError(e?.message || "Failed to schedule");
     } finally {
       setLoading(false);
     }
@@ -398,15 +452,15 @@ export default function AdminPage() {
                   type="button"
                   className={`min-h-[72px] text-left rounded border ${scheduled ? 'border-fuchsia-400/50 bg-fuchsia-50 dark:bg-fuchsia-900/10' : 'border-foreground/10'} p-1 ${cell.dateStr ? 'hover:bg-black/5 dark:hover:bg-white/10' : ''}`}
                   disabled={!cell.dateStr}
-                  title={cell.dateStr ? (scheduleId ? `Schedule ${scheduleId} on ${cell.dateStr}` : 'Enter a Spotify ID above, then click a day') : ''}
+                  title={selectedSong ? `Schedule selected song on ${cell.dateStr}` : 'Select a song above, then click a day'}
                   onClick={async () => {
                     if (!cell.dateStr) return;
                     if (scheduled && dayInfo) {
                       setPopover({ date: cell.dateStr, song: dayInfo.song });
                       return;
                     }
-                    if (!scheduleId) {
-                      setMessage('Enter a Spotify ID above, then click a day to schedule.');
+                    if (!selectedSong) {
+                      setMessage('Select a song above, then click a day to schedule.');
                       return;
                     }
                     await scheduleToday(undefined, cell.dateStr);
@@ -478,15 +532,15 @@ export default function AdminPage() {
                   <div className="flex-1" />
                   <button
                     className="text-xs rounded bg-foreground text-background px-3 py-1 disabled:opacity-50"
-                    disabled={!scheduleId}
-                    title={!scheduleId ? 'Enter a Spotify ID above to reschedule' : ''}
+                    disabled={!selectedSong}
+                    title={!selectedSong ? 'Select a song above to reschedule' : ''}
                     onClick={async () => {
                       try {
-                        if (!scheduleId) return;
+                        if (!selectedSong) return;
                         const res = await fetch('/api/admin/schedule', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-                          body: JSON.stringify({ spotify_id: scheduleId, date: popover.date }),
+                          body: JSON.stringify({ spotify_id: selectedSong, date: popover.date }),
                         });
                         const j = await res.json();
                         if (!res.ok) throw new Error(j?.error || 'Failed to reschedule');
@@ -506,50 +560,141 @@ export default function AdminPage() {
             </div>
           )}
         </section>
-        <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6 space-y-4">
-          <h2 className="font-semibold">Add song by Spotify ID</h2>
-          <div className="flex items-center gap-2">
-            <input
-              value={spotifyId}
-              onChange={(e) => setSpotifyId(e.target.value)}
-              placeholder="Spotify track ID"
-              className="flex-1 rounded border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
-            />
-            <button
-              className="rounded bg-foreground text-background px-4 py-2 text-sm disabled:opacity-50"
-              onClick={addSong}
-              disabled={!spotifyId || loading}
-            >
-              {loading ? "..." : "Add"}
-            </button>
+
+        <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6">
+          <h2 className="font-semibold mb-3">Schedule song</h2>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm text-foreground/70 block mb-2">Select song from database:</label>
+              <select
+                value={selectedSong}
+                onChange={(e) => setSelectedSong(e.target.value)}
+                className="w-full rounded border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
+              >
+                <option value="">Choose a song...</option>
+                {data?.songs?.map((song) => (
+                  <option key={song.spotify_id} value={song.spotify_id}>
+                    {song.artist} - {song.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="flex-1 rounded border border-foreground/15 bg-background/70 px-3 py-2 text-sm"
+                title="Pick a date (YYYY-MM-DD). Leave empty for today."
+                placeholder="Leave empty for today"
+              />
+              <button
+                className="rounded bg-foreground text-background px-4 py-2 text-sm disabled:opacity-50"
+                onClick={() => scheduleToday()}
+                disabled={!selectedSong || loading}
+              >
+                {loading ? "..." : "Schedule"}
+              </button>
+            </div>
           </div>
+          <div className="text-xs text-foreground/70 mt-2">Today: {todayLabel ?? "loading..."}</div>
         </section>
 
-        <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6 space-y-3">
-          <h2 className="font-semibold">Schedule today</h2>
-          <div className="flex items-center gap-2">
-            <input
-              value={scheduleId}
-              onChange={(e) => setScheduleId(e.target.value)}
-              placeholder="Spotify track ID"
-              className="flex-1 rounded border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
-            />
-            <input
-              type="date"
-              value={scheduleDate}
-              onChange={(e) => setScheduleDate(e.target.value)}
-              className="rounded border border-foreground/15 bg-background/70 px-3 py-2 text-sm"
-              title="Pick a date (YYYY-MM-DD). Leave empty for today."
-            />
+        <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6">
+          <h2 className="font-semibold mb-3">Add song</h2>
+          <div className="flex gap-2 mb-3">
             <button
-              className="rounded bg-foreground text-background px-4 py-2 text-sm disabled:opacity-50"
-              onClick={() => scheduleToday()}
-              disabled={!scheduleId || loading}
+              className={`text-xs rounded border px-3 py-1 ${!showSpotifySearch ? 'bg-foreground text-background' : 'border-foreground/15 hover:bg-black/5 dark:hover:bg-white/10'}`}
+              onClick={() => setShowSpotifySearch(false)}
             >
-              {loading ? "..." : "Schedule"}
+              📝 Manual ID
+            </button>
+            <button
+              className={`text-xs rounded border px-3 py-1 ${showSpotifySearch ? 'bg-foreground text-background' : 'border-foreground/15 hover:bg-black/5 dark:hover:bg-white/10'}`}
+              onClick={() => setShowSpotifySearch(true)}
+            >
+              🔍 Search Spotify
             </button>
           </div>
-          <div className="text-xs text-foreground/70">Today: {todayLabel ?? "loading..."}</div>
+          
+          {!showSpotifySearch ? (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={addId}
+                onChange={(e) => setAddId(e.target.value)}
+                placeholder="Spotify track ID"
+                className="flex-1 rounded border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
+              />
+              <button
+                className="rounded bg-foreground text-background px-4 py-2 text-sm disabled:opacity-50"
+                onClick={addSong}
+                disabled={!addId || loading}
+              >
+                {loading ? "..." : "Add"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for artist, song, or album..."
+                  className="flex-1 rounded border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  onKeyDown={(e) => e.key === 'Enter' && searchSpotify()}
+                />
+                <button
+                  className="rounded bg-foreground text-background px-4 py-2 text-sm disabled:opacity-50"
+                  onClick={searchSpotify}
+                  disabled={!searchQuery.trim() || searchLoading}
+                >
+                  {searchLoading ? "..." : "Search"}
+                </button>
+              </div>
+              
+              {searchResults.length > 0 && (
+                <div className="max-h-96 overflow-y-auto space-y-2 border border-foreground/10 rounded-lg p-3">
+                  {searchResults.map((track: any) => (
+                    <div key={track.spotify_id} className="flex items-center gap-3 p-2 rounded border border-foreground/5 hover:bg-black/5 dark:hover:bg-white/5">
+                      {track.album_image ? (
+                        <img src={track.album_image} alt="cover" className="w-12 h-12 rounded object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded bg-foreground/10" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium line-clamp-1">{track.title}</div>
+                        <div className="text-sm text-foreground/70 line-clamp-1">
+                          {track.artist}
+                        </div>
+                        <div className="text-xs text-foreground/60">
+                          {track.album} • {track.release_year}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {track.preview_url && (
+                          <button
+                            className={`text-xs rounded border border-foreground/15 px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 ${playingPreview === track.spotify_id ? 'bg-green-100 border-green-300 text-green-800 dark:bg-green-900/20 dark:border-green-700 dark:text-green-200' : ''}`}
+                            onClick={() => playPreview(track.preview_url, track.spotify_id)}
+                            title={playingPreview === track.spotify_id ? 'Stop preview' : 'Play preview'}
+                          >
+                            {playingPreview === track.spotify_id ? '⏸️' : '▶️'}
+                          </button>
+                        )}
+                        <button
+                          className="text-xs rounded bg-foreground text-background px-3 py-1 hover:opacity-80"
+                          onClick={() => addSongFromSearch(track)}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6">

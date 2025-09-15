@@ -1,6 +1,7 @@
 "use client";
 import { Play, Pause, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 export default function Home() {
   const [guess, setGuess] = useState("");
@@ -18,6 +19,7 @@ export default function Home() {
   const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; win_rate: number } | null>(null);
   const [shareText, setShareText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Load today's challenge
   useEffect(() => {
@@ -45,6 +47,19 @@ export default function Home() {
     return () => {
       ignore = true;
     };
+  }, []);
+
+  // Check user auth status
+  useEffect(() => {
+    const supabase = supabaseBrowser();
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      setUserEmail(data.session?.user?.email ?? null);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   // Setup audio element
@@ -123,12 +138,39 @@ export default function Home() {
       if (json.correct) {
         setHint({ level: 999, text: "Correct!" });
         try {
-          // Update cookie-based stats
+          // Submit game result to database
+          const supabase = supabaseBrowser();
+          const { data: session } = await supabase.auth.getSession();
+          
+          const gameGuesses = guesses.concat([{ text: guess, correct: true }]).map(g => ({
+            artist: g.text.split(' - ')[0] || g.text,
+            title: g.text.split(' - ')[1] || '',
+            artistCorrect: json.artist_match || g.correct,
+            titleCorrect: g.correct,
+          }));
+
+          if (session?.session?.access_token) {
+            await fetch("/api/game/submit", {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${session.session.access_token}`
+              },
+              body: JSON.stringify({ 
+                guesses: gameGuesses,
+                completed: true,
+                won: true 
+              }),
+            });
+          }
+
+          // Update cookie-based stats (fallback)
           await fetch("/api/game/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ guesses_used: (today?.max_guesses ?? 6) - (remaining ?? 6), won: true }),
           });
+          
           // Fetch latest stats
           const sres = await fetch("/api/user/stats", { cache: "no-store" });
           if (sres.ok) setStats(await sres.json());
@@ -186,10 +228,23 @@ export default function Home() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-200 via-white to-indigo-200 dark:from-fuchsia-900/30 dark:via-black dark:to-indigo-900/30">
       <header className="w-full max-w-3xl px-6 py-8">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-Dle</h1>
-        <p className="text-sm text-foreground/70 mt-1">Guess the K-pop song of the day</p>
-        <div className="mt-2">
-          <a href="/auth" className="text-xs underline text-foreground/70 hover:text-foreground">Sign in</a>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-Dle</h1>
+            <p className="text-sm text-foreground/70 mt-1">Guess the K-pop song of the day</p>
+          </div>
+          <div className="text-right">
+            {userEmail ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs">
+                <span className="opacity-70">Signed in as</span>
+                <span className="font-medium">{userEmail}</span>
+              </div>
+            ) : (
+              <a href="/auth" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
+                Sign in
+              </a>
+            )}
+          </div>
         </div>
       </header>
 
