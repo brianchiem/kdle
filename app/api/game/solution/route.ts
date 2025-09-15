@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { COOKIE_NAME, newState } from "@/lib/game";
 import { getTodayDaily } from "@/lib/game";
-import { supabaseServer } from "@/lib/supabaseClient";
+import { supabaseServer, supabaseServerWithAuth } from "@/lib/supabaseClient";
 import { todayPST } from "@/lib/date";
 
-export async function GET() {
+export async function GET(req: Request) {
   const daily = await getTodayDaily();
   if (!daily) return NextResponse.json({ error: "Today's song not set" }, { status: 404 });
 
@@ -13,20 +13,25 @@ export async function GET() {
 
   // First check if user is authenticated and has won in database
   try {
-    const supabase = supabaseServer();
-    const { data: userData } = await supabase.auth.getUser();
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
     
-    if (userData.user) {
-      const today = todayPST();
-      const { data: todayResult } = await supabase
-        .from('game_results')
-        .select('won')
-        .eq('user_id', userData.user.id)
-        .eq('date', today)
-        .single();
+    if (token) {
+      const supabase = supabaseServerWithAuth(token);
+      const { data: userData } = await supabase.auth.getUser();
       
-      if (todayResult?.won) {
-        won = true;
+      if (userData.user) {
+        const today = todayPST();
+        const { data: todayResult } = await supabase
+          .from('game_results')
+          .select('won')
+          .eq('user_id', userData.user.id)
+          .eq('date', today)
+          .single();
+        
+        if (todayResult?.won) {
+          won = true;
+        }
       }
     }
   } catch {

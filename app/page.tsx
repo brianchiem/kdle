@@ -104,7 +104,10 @@ export default function Home() {
                 // Fetch song info if won
                 if (statsData.todayWon) {
                   try {
-                    const solRes = await fetch("/api/game/solution", { cache: "no-store" });
+                    const solRes = await fetch("/api/game/solution", { 
+                      cache: "no-store",
+                      headers: { Authorization: `Bearer ${data.session.access_token}` }
+                    });
                     if (solRes.ok) {
                       const sol = await solRes.json();
                       if (sol?.artist && sol?.title) {
@@ -271,7 +274,10 @@ export default function Home() {
           // Try to fetch solution (artist + title) now that the user has won
           let solutionLabel: string | null = null;
           try {
-            const solRes = await fetch("/api/game/solution", { cache: "no-store" });
+            const solRes = await fetch("/api/game/solution", { 
+              cache: "no-store",
+              headers: { Authorization: `Bearer ${session.session?.access_token}` }
+            });
             if (solRes.ok) {
               const sol = await solRes.json();
               if (sol?.artist && sol?.title) {
