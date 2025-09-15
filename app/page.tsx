@@ -25,6 +25,7 @@ export default function Home() {
   const [gameCompleted, setGameCompleted] = useState(false);
   const [gameWon, setGameWon] = useState(false);
   const [songInfo, setSongInfo] = useState<{ artist: string; title: string } | null>(null);
+  const [volume, setVolume] = useState(0.5);
 
   // Load today's challenge
   useEffect(() => {
@@ -147,12 +148,22 @@ export default function Home() {
     const audio = new Audio(today.preview_url);
     audioRef.current = audio;
     audio.preload = "auto";
+    audio.volume = volume;
     audio.onended = () => setIsPlaying(false);
     return () => {
-      audio.pause();
-      audioRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
-  }, [today?.preview_url]);
+  }, [today?.preview_url, volume]);
+
+  // Update volume when changed
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
 
   async function playSnippet() {
     if (!today?.preview_url) return;
@@ -316,26 +327,47 @@ export default function Home() {
       <header className="w-full max-w-3xl px-6 py-8">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-Dle</h1>
-            <p className="text-sm text-foreground/70 mt-1">Guess the K-pop song of the day</p>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-DLE</h1>
+            <p className="text-sm text-foreground/70 mt-1">Guess the K-Pop song of the day</p>
+            <p className="text-xs text-foreground/50 mt-1">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </p>
           </div>
           <div className="text-right space-y-2">
-            <div className="flex items-center gap-2">
-              <a href="/leaderboard" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
-                🏆 Leaderboard
+            <div className="flex items-center gap-2 flex-nowrap">
+              <a href="/leaderboard" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+                <span>🏆</span>
+                <span>Leaderboard</span>
               </a>
               {userEmail ? (
-                <div className="flex items-center gap-2">
-                  <a href="/settings" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
-                    ⚙️ Settings
+                <>
+                  <a href="/settings" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+                    <span>⚙️</span>
+                    <span>Settings</span>
                   </a>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs">
-                    <span className="opacity-70">Signed in as</span>
+                  <button
+                    onClick={async () => {
+                      const supabase = supabaseBrowser();
+                      await supabase.auth.signOut();
+                      window.location.reload();
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap"
+                  >
+                    <span>🚪</span>
+                    <span>Sign out</span>
+                  </button>
+                  <div className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs">
+                    <span className="opacity-70">😊</span>
                     <span className="font-medium">{userEmail}</span>
                   </div>
-                </div>
+                </>
               ) : (
-                <a href="/auth" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
+                <a href="/auth" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
                   Sign in
                 </a>
               )}
@@ -374,16 +406,43 @@ export default function Home() {
             <p className="text-sm text-red-500">{error}</p>
           ) : (
             <>
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-medium text-white bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-600 hover:to-indigo-600 active:scale-[.99] transition disabled:opacity-50"
-                onClick={playSnippet}
-                disabled={!today?.preview_url}
-                aria-disabled={!today?.preview_url}
-                title={!today?.preview_url ? "No preview available" : "Play 5s snippet"}
-              >
-                {isPlaying ? <Pause size={20} /> : <Play size={20} />} {isPlaying ? "Pause" : "Play snippet"}
-              </button>
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-medium text-white bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-600 hover:to-indigo-600 active:scale-[.99] transition disabled:opacity-50"
+                  onClick={playSnippet}
+                  disabled={!today?.preview_url}
+                  aria-disabled={!today?.preview_url}
+                  title={!today?.preview_url ? "No preview available" : "Play 5s snippet"}
+                >
+                  {isPlaying ? <Pause size={20} /> : <Play size={20} />} {isPlaying ? "Pause" : "Play snippet"}
+                </button>
+                
+                {/* Volume Control */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-foreground/60">🔊</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={volume}
+                    onChange={(e) => {
+                      const newVolume = parseFloat(e.target.value);
+                      setVolume(newVolume);
+                      // Don't interrupt playback, just update volume
+                      if (audioRef.current) {
+                        audioRef.current.volume = newVolume;
+                      }
+                    }}
+                    className="w-20 h-2 bg-foreground/20 rounded-lg appearance-none cursor-pointer slider"
+                    style={{
+                      background: `linear-gradient(to right, rgb(217, 70, 239) 0%, rgb(217, 70, 239) ${volume * 100}%, rgb(0, 0, 0, 0.2) ${volume * 100}%, rgb(0, 0, 0, 0.2) 100%)`
+                    }}
+                  />
+                  <span className="text-xs text-foreground/60 w-8">{Math.round(volume * 100)}%</span>
+                </div>
+              </div>
               {!today?.preview_url && (
                 <p className="text-xs text-foreground/70">No preview available for today’s track.</p>
               )}
@@ -391,13 +450,14 @@ export default function Home() {
               <div className="w-full flex items-center gap-2">
                 <input
                   value={guess}
-                  onChange={(e) => setGuess(e.target.value)}
+                  onChange={(e) => setGuess(e.target.value.slice(0, 100))}
                   placeholder="Type your guess (Artist - Song)"
                   className="flex-1 rounded-lg border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && guess.trim() && !submitting && !gameCompleted) submitGuess();
                   }}
                   disabled={gameCompleted}
+                  maxLength={100}
                 />
                 <button
                   type="button"
@@ -468,7 +528,7 @@ export default function Home() {
                           </div>
                           {songInfo && (
                             <div className="text-xs text-foreground/60 mt-1">
-                              Today's K-Dle song
+                              Today's K-DLE song
                             </div>
                           )}
                         </div>

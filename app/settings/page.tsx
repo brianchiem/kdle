@@ -140,12 +140,26 @@ export default function SettingsPage() {
             <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
             <p className="text-sm text-foreground/70 mt-1">Manage your profile and account</p>
           </div>
-          <a
-            href="/"
-            className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            ← Back to Game
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const supabase = supabaseBrowser();
+                await supabase.auth.signOut();
+                router.push('/');
+              }}
+              className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <span>🚪</span>
+              <span>Sign out</span>
+            </button>
+            <a
+              href="/"
+              className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <span>←</span>
+              <span>Back to Game</span>
+            </a>
+          </div>
         </div>
       </header>
 

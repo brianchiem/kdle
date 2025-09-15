@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseServerWithAuth } from "@/lib/supabaseClient";
+import { todayUTC } from "@/lib/date";
+import { rateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 
 const GuessSchema = z.object({
   artist: z.string(),
@@ -26,6 +28,18 @@ export async function POST(req: Request) {
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting - 5 submissions per minute per user
+    const rateLimitResult = rateLimit(`submit:${user.id}`, 5, 60 * 1000);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { 
+          status: 429,
+          headers: getRateLimitHeaders(rateLimitResult.remaining, rateLimitResult.resetTime)
+        }
+      );
     }
 
     const body = await req.json().catch(() => null);

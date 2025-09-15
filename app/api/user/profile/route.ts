@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseServerWithAuth } from "@/lib/supabaseClient";
+import { rateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 
 const UpdateProfileSchema = z.object({
   username: z.string().min(3).max(20).regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores")
 });
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
@@ -52,6 +53,18 @@ export async function POST(req: Request) {
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting - 3 profile updates per minute per user
+    const rateLimitResult = rateLimit(`profile:${user.id}`, 3, 60 * 1000);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { 
+          status: 429,
+          headers: getRateLimitHeaders(rateLimitResult.remaining, rateLimitResult.resetTime)
+        }
+      );
     }
 
     const body = await req.json().catch(() => null);
