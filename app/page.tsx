@@ -8,6 +8,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<{ date: string; preview_url: string | null; album_image?: string | null; max_guesses: number } | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userRank, setUserRank] = useState<number | null>(null);
+  const [hasUsername, setHasUsername] = useState<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [guesses, setGuesses] = useState<{ text: string; correct: boolean }[]>([]);
@@ -19,7 +22,6 @@ export default function Home() {
   const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; win_rate: number } | null>(null);
   const [shareText, setShareText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   // Load today's challenge
   useEffect(() => {
@@ -49,17 +51,48 @@ export default function Home() {
     };
   }, []);
 
-  // Check user auth status
+  // Check auth status and load user rank
   useEffect(() => {
     const supabase = supabaseBrowser();
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      setUserEmail(data.session?.user?.email ?? null);
+      try {
+        const { data } = await supabase.auth.getSession();
+        const user = data.session?.user;
+        setUserEmail(user?.email || null);
+
+        // Check if user has username and load user rank if signed in
+        if (user && data.session?.access_token) {
+          try {
+            // Check if user has a username
+            const profileRes = await fetch('/api/user/profile', {
+              headers: { Authorization: `Bearer ${data.session.access_token}` }
+            });
+            if (profileRes.ok) {
+              const profile = await profileRes.json();
+              setHasUsername(!!profile.username);
+            } else {
+              setHasUsername(false);
+            }
+
+            // Load user rank
+            const res = await fetch('/api/leaderboard?type=current_streak&limit=100', {
+              headers: { Authorization: `Bearer ${data.session.access_token}` }
+            });
+            if (res.ok) {
+              const leaderboard = await res.json();
+              const userRank = leaderboard.leaderboard.findIndex((entry: any) => entry.email === user.email) + 1;
+              setUserRank(userRank > 0 ? userRank : null);
+            }
+          } catch (e) {
+            console.error('Failed to load user data:', e);
+          }
+        } else {
+          setHasUsername(null);
+        }
+      } catch (e) {
+        console.error('Auth check error:', e);
+      }
     })();
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user?.email ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
   }, []);
 
   // Setup audio element
@@ -193,7 +226,8 @@ export default function Home() {
           const header = solutionLabel
             ? `K‑Dle ${date} — ${attempts}/${total}`
             : `K‑Dle ${date} — ${attempts}/${total}`;
-          setShareText(`${header}\n${rows}`);
+          const shareUrl = `${window.location.origin}/leaderboard`;
+          setShareText(`${header}\n${rows}\n\nPlay K‑Dle: ${shareUrl}`);
         } catch {}
       }
     } catch (e: any) {
@@ -233,22 +267,54 @@ export default function Home() {
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-Dle</h1>
             <p className="text-sm text-foreground/70 mt-1">Guess the K-pop song of the day</p>
           </div>
-          <div className="text-right">
-            {userEmail ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs">
-                <span className="opacity-70">Signed in as</span>
-                <span className="font-medium">{userEmail}</span>
-              </div>
-            ) : (
-              <a href="/auth" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
-                Sign in
+          <div className="text-right space-y-2">
+            <div className="flex items-center gap-2">
+              <a href="/leaderboard" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
+                🏆 Leaderboard
               </a>
-            )}
+              {userEmail ? (
+                <div className="flex items-center gap-2">
+                  <a href="/settings" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
+                    ⚙️ Settings
+                  </a>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs">
+                    <span className="opacity-70">Signed in as</span>
+                    <span className="font-medium">{userEmail}</span>
+                  </div>
+                </div>
+              ) : (
+                <a href="/auth" className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10">
+                  Sign in
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="w-full max-w-3xl px-6 flex-1 flex flex-col gap-6">
+      {/* Username setup prompt */}
+      {userEmail && hasUsername === false && (
+        <div className="w-full max-w-2xl px-6">
+          <div className="rounded-lg bg-fuchsia-50 dark:bg-fuchsia-900/20 border border-fuchsia-200 dark:border-fuchsia-800 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-medium text-fuchsia-800 dark:text-fuchsia-200">Set up your username</h3>
+                <p className="text-sm text-fuchsia-700 dark:text-fuchsia-300 mt-1">
+                  Create a username to appear on the leaderboard and track your progress.
+                </p>
+              </div>
+              <a
+                href="/setup"
+                className="rounded-lg bg-fuchsia-600 text-white px-4 py-2 text-sm font-medium hover:bg-fuchsia-700 transition-colors"
+              >
+                Set Username
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main className="w-full max-w-2xl px-6 pb-12 space-y-6">
         <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6 flex flex-col items-center gap-4">
           {loading ? (
             <p className="text-sm text-foreground/70">Loading today’s challenge…</p>

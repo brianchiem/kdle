@@ -20,6 +20,13 @@ create table if not exists public.daily_song (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  username text unique,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.user_stats (
   user_id uuid primary key references auth.users(id) on delete cascade,
   streak int not null default 0,
@@ -45,12 +52,14 @@ create table if not exists public.game_results (
 -- Indexes
 create index if not exists idx_songs_spotify_id on public.songs(spotify_id);
 create index if not exists idx_daily_song_date on public.daily_song(date);
+create index if not exists idx_user_profiles_username on public.user_profiles(username);
 create index if not exists idx_game_results_user_date on public.game_results(user_id, date);
 create index if not exists idx_game_results_date on public.game_results(date);
 
 -- RLS
 alter table public.songs enable row level security;
 alter table public.daily_song enable row level security;
+alter table public.user_profiles enable row level security;
 alter table public.user_stats enable row level security;
 alter table public.game_results enable row level security;
 
@@ -81,6 +90,16 @@ drop policy if exists user_stats_owner_write on public.user_stats;
 create policy user_stats_owner_write on public.user_stats for insert with check (auth.uid() = user_id);
 drop policy if exists user_stats_owner_update on public.user_stats;
 create policy user_stats_owner_update on public.user_stats for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- user_profiles: each user can see/update their own profile, usernames are publicly readable
+drop policy if exists user_profiles_read_all on public.user_profiles;
+create policy user_profiles_read_all on public.user_profiles for select using (true);
+drop policy if exists user_profiles_owner_write on public.user_profiles;
+create policy user_profiles_owner_write on public.user_profiles for insert with check (auth.uid() = user_id);
+drop policy if exists user_profiles_owner_update on public.user_profiles;
+create policy user_profiles_owner_update on public.user_profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists user_profiles_owner_delete on public.user_profiles;
+create policy user_profiles_owner_delete on public.user_profiles for delete using (auth.uid() = user_id);
 
 -- game_results: each user can see/update their own results
 drop policy if exists game_results_owner_read on public.game_results;
