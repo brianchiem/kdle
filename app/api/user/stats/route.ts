@@ -19,6 +19,7 @@ export async function GET() {
           streak: data.streak ?? 0,
           longest_streak: data.longest_streak ?? 0,
           total_games: data.total_games ?? 0,
+          total_wins: data.total_wins ?? 0,
           win_rate: (data.total_games ?? 0) ? (data.total_wins ?? 0) / (data.total_games ?? 0) : 0,
         });
       }
@@ -34,6 +35,7 @@ export async function GET() {
     streak: stats.streak,
     longest_streak: stats.longest_streak,
     total_games: stats.total_games,
+    total_wins: stats.total_wins,
     win_rate: stats.total_games ? stats.total_wins / stats.total_games : 0,
   });
 }
