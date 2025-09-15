@@ -664,7 +664,7 @@ export default function Home() {
       </main>
 
       <footer className="w-full max-w-3xl px-4 sm:px-6 py-6 sm:py-8 text-xs text-foreground/60 text-center">
-        Built with Next.js + Tailwind. © {new Date().getFullYear()} K‑Dle
+        Built with Next.js + Tailwind. © {new Date().getFullYear()} K‑DLE
       </footer>
 
       {/* Toast */}

@@ -134,13 +134,13 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-200 via-white to-indigo-200 dark:from-fuchsia-900/30 dark:via-black dark:to-indigo-900/30">
-      <header className="w-full max-w-2xl px-6 py-8">
-        <div className="flex items-center justify-between">
+      <header className="w-full max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Account Settings</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Account Settings</h1>
             <p className="text-sm text-foreground/70 mt-1">Manage your profile and account</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <button
               onClick={async () => {
                 const supabase = supabaseBrowser();
@@ -163,9 +163,9 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-2xl px-6 pb-12 space-y-6">
+      <main className="w-full max-w-2xl px-4 sm:px-6 pb-12 space-y-6">
         {/* Profile Section */}
-        <div className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6">
+        <div className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-4 sm:p-6">
           <div className="flex items-center gap-3 mb-6">
             <User className="w-5 h-5 text-fuchsia-600 dark:text-fuchsia-400" />
             <h2 className="text-lg font-semibold">Profile</h2>
@@ -173,7 +173,7 @@ export default function SettingsPage() {
 
           {userEmail && (
             <div className="mb-4 p-3 rounded-lg bg-foreground/5">
-              <p className="text-sm text-foreground/70">Email: {userEmail}</p>
+              <p className="text-sm text-foreground/70 break-all">Email: {userEmail}</p>
             </div>
           )}
 
@@ -188,7 +188,7 @@ export default function SettingsPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
-                className="w-full rounded-lg border border-foreground/15 bg-background/70 px-4 py-3 outline-none focus:ring-2 focus:ring-fuchsia-400"
+                className="w-full rounded-lg border border-foreground/15 bg-background/70 px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base outline-none focus:ring-2 focus:ring-fuchsia-400"
                 minLength={3}
                 maxLength={20}
                 pattern="[a-zA-Z0-9_]+"
@@ -223,7 +223,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={loading || !username.trim() || username === currentUsername}
-              className="rounded-lg bg-foreground text-background px-6 py-2 font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+              className="w-full sm:w-auto rounded-lg bg-foreground text-background px-4 sm:px-6 py-2 sm:py-2 text-sm sm:text-base font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
             >
               {loading ? "Updating..." : "Update Username"}
             </button>
@@ -231,7 +231,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Danger Zone */}
-        <div className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10 backdrop-blur p-6">
+        <div className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10 backdrop-blur p-4 sm:p-6">
           <div className="flex items-center gap-3 mb-4">
             <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
             <h2 className="text-lg font-semibold text-red-800 dark:text-red-200">Danger Zone</h2>
@@ -244,7 +244,7 @@ export default function SettingsPage() {
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-2 text-sm hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+              className="flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto rounded-lg border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-2 text-sm hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Delete Account
@@ -259,15 +259,15 @@ export default function SettingsPage() {
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full rounded-lg border border-red-300 dark:border-red-700 bg-background/70 px-4 py-2 outline-none focus:ring-2 focus:ring-red-400"
+                  className="w-full rounded-lg border border-red-300 dark:border-red-700 bg-background/70 px-3 sm:px-4 py-2 text-sm sm:text-base outline-none focus:ring-2 focus:ring-red-400"
                   placeholder="DELETE"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   onClick={handleDeleteAccount}
                   disabled={deleteLoading || deleteConfirmText !== "DELETE"}
-                  className="flex items-center gap-2 rounded-lg bg-red-600 text-white px-4 py-2 text-sm disabled:opacity-50 hover:bg-red-700 transition-colors"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-red-600 text-white px-4 py-2 text-sm disabled:opacity-50 hover:bg-red-700 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                   {deleteLoading ? "Deleting..." : "Delete Account"}

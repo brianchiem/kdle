@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServerWithAuth } from "@/lib/supabaseClient";
+import { todayPST } from "@/lib/date";
 
 export async function GET(req: Request) {
   try {
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
       .single();
 
     // Get today's game result
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayPST();
     const { data: todayResult } = await supabase
       .from('game_results')
       .select('*')

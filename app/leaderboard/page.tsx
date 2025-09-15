@@ -89,18 +89,18 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-200 via-white to-indigo-200 dark:from-fuchsia-900/30 dark:via-black dark:to-indigo-900/30">
-      <header className="w-full max-w-4xl px-6 py-8">
-        <div className="flex items-start justify-between">
+      <header className="w-full max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Leaderboard</h1>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Leaderboard</h1>
             <p className="text-sm text-foreground/70 mt-1">See how you stack up against other K-pop fans</p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             {userEmail ? (
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-3 py-1 text-xs">
                   <span className="opacity-70">Signed in as</span>
-                  <span className="font-medium">{userEmail}</span>
+                  <span className="font-medium truncate max-w-[150px] sm:max-w-none">{userEmail}</span>
                 </div>
                 {userRank && (
                   <div className="text-xs text-foreground/60">
@@ -117,21 +117,22 @@ export default function LeaderboardPage() {
         </div>
       </header>
 
-      <main className="w-full max-w-4xl px-6 pb-12 space-y-6">
+      <main className="w-full max-w-4xl px-4 sm:px-6 pb-12 space-y-6">
         {/* Category Tabs */}
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
           {leaderboardTypes.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setActiveType(key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 activeType === key
                   ? 'bg-foreground text-background'
                   : 'bg-background/60 border border-foreground/15 hover:bg-black/5 dark:hover:bg-white/10'
               }`}
             >
               <Icon className="w-4 h-4" />
-              {label}
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{label.split(' ')[0]}</span>
             </button>
           ))}
         </div>
@@ -163,33 +164,33 @@ export default function LeaderboardPage() {
               {leaderboard.map((entry) => (
                 <div
                   key={`${entry.rank}-${entry.email}`}
-                  className={`flex items-center justify-between p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+                  className={`flex items-center justify-between p-3 sm:p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
                     entry.email === userEmail ? 'bg-fuchsia-50 dark:bg-fuchsia-900/20 border-l-4 border-l-fuchsia-400' : ''
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-8">
+                  <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                    <div className="flex items-center justify-center w-6 sm:w-8 flex-shrink-0">
                       {getRankIcon(entry.rank)}
                     </div>
-                    <div>
-                      <div className="font-medium">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">
                         {entry.username}
                         {entry.email === userEmail && (
                           <span className="ml-2 text-xs text-fuchsia-600 dark:text-fuchsia-400">(You)</span>
                         )}
                       </div>
-                      <div className="text-xs text-foreground/60 space-x-3">
+                      <div className="text-xs text-foreground/60 flex flex-col sm:flex-row sm:space-x-3 space-y-1 sm:space-y-0">
                         <span>Games: {entry.total_games}</span>
                         <span>Wins: {entry.total_wins}</span>
-                        <span>Win Rate: {entry.win_rate}%</span>
+                        <span className="hidden sm:inline">Win Rate: {entry.win_rate}%</span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold">
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-base sm:text-lg font-bold">
                       {formatValue(entry.value, activeType)}
                     </div>
-                    <div className="text-xs text-foreground/60">
+                    <div className="text-xs text-foreground/60 hidden sm:block">
                       Current: {entry.current_streak} | Best: {entry.longest_streak}
                     </div>
                   </div>
@@ -203,7 +204,7 @@ export default function LeaderboardPage() {
         <div className="text-center">
           <a
             href="/"
-            className="inline-flex items-center gap-2 rounded-full border border-foreground/15 px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+            className="inline-flex items-center justify-center gap-2 w-full sm:w-auto rounded-full border border-foreground/15 px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
           >
             ← Back to Game
           </a>
