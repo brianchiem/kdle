@@ -19,7 +19,7 @@ export default function Home() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<{ id: string; label: string; album_image: string | null; preview_url: string | null }[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
-  const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; win_rate: number } | null>(null);
+  const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; total_wins: number; win_rate: number } | null>(null);
   const [shareText, setShareText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [gameCompleted, setGameCompleted] = useState(false);
@@ -88,6 +88,7 @@ export default function Home() {
                 streak: statsData.stats.streak,
                 longest_streak: statsData.stats.longest_streak,
                 total_games: statsData.stats.total_games,
+                total_wins: statsData.stats.total_wins,
                 win_rate: statsData.stats.total_games > 0 ? Math.round((statsData.stats.total_wins / statsData.stats.total_games) * 100) : 0
               });
               // Restore game state if completed today
@@ -324,10 +325,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-200 via-white to-indigo-200 dark:from-fuchsia-900/30 dark:via-black dark:to-indigo-900/30">
-      <header className="w-full max-w-3xl px-6 py-8">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">K-DLE</h1>
+      <header className="w-full max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">K-DLE</h1>
             <p className="text-sm text-foreground/70 mt-1">Guess the K-Pop song of the day</p>
             <p className="text-xs text-foreground/50 mt-1">
               {new Date().toLocaleDateString('en-US', { 
@@ -338,40 +339,38 @@ export default function Home() {
               })}
             </p>
           </div>
-          <div className="text-right space-y-2">
-            <div className="flex items-center gap-2 flex-nowrap">
-              <a href="/leaderboard" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
-                <span>🏆</span>
-                <span>Leaderboard</span>
-              </a>
-              {userEmail ? (
-                <>
-                  <a href="/settings" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
-                    <span>⚙️</span>
-                    <span>Settings</span>
-                  </a>
-                  <button
-                    onClick={async () => {
-                      const supabase = supabaseBrowser();
-                      await supabase.auth.signOut();
-                      window.location.reload();
-                    }}
-                    className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap"
-                  >
-                    <span>🚪</span>
-                    <span>Sign out</span>
-                  </button>
-                  <div className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs">
-                    <span className="opacity-70">😊</span>
-                    <span className="font-medium">{userEmail}</span>
-                  </div>
-                </>
-              ) : (
-                <a href="/auth" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
-                  Sign in
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <a href="/leaderboard" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+              <span>🏆</span>
+              <span>Leaderboard</span>
+            </a>
+            {userEmail ? (
+              <>
+                <a href="/settings" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+                  <span>⚙️</span>
+                  <span>Settings</span>
                 </a>
-              )}
-            </div>
+                <button
+                  onClick={async () => {
+                    const supabase = supabaseBrowser();
+                    await supabase.auth.signOut();
+                    window.location.reload();
+                  }}
+                  className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap"
+                >
+                  <span>🚪</span>
+                  <span>Sign out</span>
+                </button>
+                <div className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs min-w-0">
+                  <span className="opacity-70">😊</span>
+                  <span className="font-medium truncate max-w-[120px] sm:max-w-none">{userEmail}</span>
+                </div>
+              </>
+            ) : (
+              <a href="/auth" className="inline-flex items-center gap-1 rounded-full border border-foreground/15 px-3 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10 whitespace-nowrap">
+                Sign in
+              </a>
+            )}
           </div>
         </div>
       </header>
@@ -398,28 +397,29 @@ export default function Home() {
         </div>
       )}
 
-      <main className="w-full max-w-2xl px-6 pb-12 space-y-6">
-        <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-6 flex flex-col items-center gap-4">
+      <main className="w-full max-w-2xl px-4 sm:px-6 pb-12 space-y-6">
+        <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-4 sm:p-6 flex flex-col items-center gap-4">
           {loading ? (
             <p className="text-sm text-foreground/70">Loading today’s challenge…</p>
           ) : error ? (
             <p className="text-sm text-red-500">{error}</p>
           ) : (
             <>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-base font-medium text-white bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-600 hover:to-indigo-600 active:scale-[.99] transition disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full px-4 sm:px-6 py-3 text-sm sm:text-base font-medium text-white bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-600 hover:to-indigo-600 active:scale-[.99] transition disabled:opacity-50 w-full sm:w-auto justify-center"
                   onClick={playSnippet}
                   disabled={!today?.preview_url}
                   aria-disabled={!today?.preview_url}
                   title={!today?.preview_url ? "No preview available" : "Play 5s snippet"}
                 >
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} />} {isPlaying ? "Pause" : "Play snippet"}
+                  {isPlaying ? <Pause size={18} /> : <Play size={18} />} 
+                  <span className="ml-1">{isPlaying ? "Pause" : "Play snippet"}</span>
                 </button>
                 
                 {/* Volume Control */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-center sm:justify-start">
                   <span className="text-xs text-foreground/60">🔊</span>
                   <input
                     type="range"
@@ -435,7 +435,7 @@ export default function Home() {
                         audioRef.current.volume = newVolume;
                       }
                     }}
-                    className="w-20 h-2 bg-foreground/20 rounded-lg appearance-none cursor-pointer slider"
+                    className="w-16 sm:w-20 h-2 bg-foreground/20 rounded-lg appearance-none cursor-pointer slider"
                     style={{
                       background: `linear-gradient(to right, rgb(217, 70, 239) 0%, rgb(217, 70, 239) ${volume * 100}%, rgb(0, 0, 0, 0.2) ${volume * 100}%, rgb(0, 0, 0, 0.2) 100%)`
                     }}
@@ -447,12 +447,12 @@ export default function Home() {
                 <p className="text-xs text-foreground/70">No preview available for today’s track.</p>
               )}
 
-              <div className="w-full flex items-center gap-2">
+              <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2">
                 <input
                   value={guess}
                   onChange={(e) => setGuess(e.target.value.slice(0, 100))}
                   placeholder="Type your guess (Artist - Song)"
-                  className="flex-1 rounded-lg border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
+                  className="flex-1 rounded-lg border border-foreground/15 bg-background/70 px-3 py-3 sm:py-2 text-base sm:text-sm outline-none focus:ring-2 focus:ring-fuchsia-400"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && guess.trim() && !submitting && !gameCompleted) submitGuess();
                   }}
@@ -461,7 +461,7 @@ export default function Home() {
                 />
                 <button
                   type="button"
-                  className="rounded-lg border border-foreground/10 bg-foreground text-background px-4 py-2 disabled:opacity-50"
+                  className="rounded-lg border border-foreground/10 bg-foreground text-background px-4 py-3 sm:py-2 text-base sm:text-sm font-medium disabled:opacity-50 whitespace-nowrap"
                   disabled={!guess.trim() || submitting || gameCompleted || (remaining !== null && remaining <= 0) || (hint?.level === 999)}
                   onClick={submitGuess}
                 >
@@ -564,11 +564,14 @@ export default function Home() {
                   )}
                 </div>
               )}
-              <p className="text-xs text-foreground/60">{today?.max_guesses ?? 6} guesses total. Hints unlock after each wrong guess.</p>
-              {remaining !== null && (
-                <p className="text-xs text-foreground/70">Remaining guesses: {remaining}</p>
-              )}
-
+              <div className="text-center space-y-1">
+                <p className="text-xs text-foreground/60">{today?.max_guesses ?? 6} guesses total. Hints unlock after each wrong guess.</p>
+                {remaining !== null && (
+                  <p className="text-xs text-foreground/60">
+                    {remaining} {remaining === 1 ? "guess" : "guesses"} remaining
+                  </p>
+                )}
+              </div>
               {hint && (
                 <div className="w-full rounded-lg border border-fuchsia-300/30 bg-fuchsia-50 dark:bg-fuchsia-900/20 p-3 text-sm">
                   <div className="flex items-center gap-2 font-medium"><Sparkles size={16}/> Hint {hint.level !== 999 ? `#${hint.level}` : ""}</div>
@@ -605,6 +608,7 @@ export default function Home() {
                             streak: statsData.stats.streak,
                             longest_streak: statsData.stats.longest_streak,
                             total_games: statsData.stats.total_games,
+                            total_wins: statsData.stats.total_wins,
                             win_rate: statsData.stats.total_games > 0 ? Math.round((statsData.stats.total_wins / statsData.stats.total_games) * 100) : 0
                           });
                         }
@@ -615,27 +619,29 @@ export default function Home() {
                   View stats
                 </button>
               </div>
-              {stats && (
-                <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="rounded-lg border border-foreground/10 p-3">
-                    <div className="text-foreground/60">Streak</div>
-                    <div className="text-lg font-semibold">{stats.streak}</div>
+              {stats && userEmail && (
+                <section className="rounded-2xl border border-foreground/10 bg-background/60 backdrop-blur p-4 sm:p-6">
+                  <h2 className="font-semibold mb-4 text-center sm:text-left">Your Stats</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-fuchsia-600">{stats.streak}</div>
+                      <div className="text-xs text-foreground/60">Current Streak</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-indigo-600">{stats.longest_streak}</div>
+                      <div className="text-xs text-foreground/60">Longest Streak</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-emerald-600">{stats.total_wins}</div>
+                      <div className="text-xs text-foreground/60">Total Wins</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-amber-600">{stats.win_rate}%</div>
+                      <div className="text-xs text-foreground/60">Win Rate</div>
+                    </div>
                   </div>
-                  <div className="rounded-lg border border-foreground/10 p-3">
-                    <div className="text-foreground/60">Longest</div>
-                    <div className="text-lg font-semibold">{stats.longest_streak}</div>
-                  </div>
-                  <div className="rounded-lg border border-foreground/10 p-3">
-                    <div className="text-foreground/60">Games</div>
-                    <div className="text-lg font-semibold">{stats.total_games}</div>
-                  </div>
-                  <div className="rounded-lg border border-foreground/10 p-3">
-                    <div className="text-foreground/60">Win rate</div>
-                    <div className="text-lg font-semibold">{stats.win_rate}%</div>
-                  </div>
-                </div>
+                </section>
               )}
-
               {guesses.length > 0 && (
                 <div className="w-full">
                   <h3 className="font-semibold mb-2">Your guesses</h3>
@@ -657,7 +663,7 @@ export default function Home() {
 
       </main>
 
-      <footer className="w-full max-w-3xl px-6 py-8 text-xs text-foreground/60">
+      <footer className="w-full max-w-3xl px-4 sm:px-6 py-6 sm:py-8 text-xs text-foreground/60 text-center">
         Built with Next.js + Tailwind. © {new Date().getFullYear()} K‑Dle
       </footer>
 
