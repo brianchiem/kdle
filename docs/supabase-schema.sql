@@ -22,9 +22,11 @@ create table if not exists public.daily_song (
 
 create table if not exists public.user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  username text unique,
+  username text unique not null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint username_length check (char_length(username) >= 3 and char_length(username) <= 20),
+  constraint username_format check (username ~ '^[a-zA-Z0-9_]+$')
 );
 
 create table if not exists public.user_stats (

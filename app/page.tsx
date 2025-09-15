@@ -22,6 +22,9 @@ export default function Home() {
   const [stats, setStats] = useState<{ streak: number; longest_streak: number; total_games: number; win_rate: number } | null>(null);
   const [shareText, setShareText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [gameCompleted, setGameCompleted] = useState(false);
+  const [gameWon, setGameWon] = useState(false);
+  const [songInfo, setSongInfo] = useState<{ artist: string; title: string } | null>(null);
 
   // Load today's challenge
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function Home() {
         const user = data.session?.user;
         setUserEmail(user?.email || null);
 
-        // Check if user has username and load user rank if signed in
+        // Check if user has username and load user data if signed in
         if (user && data.session?.access_token) {
           try {
             // Check if user has a username
@@ -74,12 +77,55 @@ export default function Home() {
               setHasUsername(false);
             }
 
-            // Load user rank
-            const res = await fetch('/api/leaderboard?type=current_streak&limit=100', {
+            // Load user stats and today's game state
+            const statsRes = await fetch('/api/game/stats', {
               headers: { Authorization: `Bearer ${data.session.access_token}` }
             });
-            if (res.ok) {
-              const leaderboard = await res.json();
+            if (statsRes.ok) {
+              const statsData = await statsRes.json();
+              setStats({
+                streak: statsData.stats.streak,
+                longest_streak: statsData.stats.longest_streak,
+                total_games: statsData.stats.total_games,
+                win_rate: statsData.stats.total_games > 0 ? Math.round((statsData.stats.total_wins / statsData.stats.total_games) * 100) : 0
+              });
+              // Restore game state if completed today
+              if (statsData.todayCompleted) {
+                setGameCompleted(true);
+                setGameWon(statsData.todayWon);
+                setGuesses(statsData.todayGuesses.map((g: any) => ({
+                  text: g.guess_text || `${g.artist}${g.title ? ' - ' + g.title : ''}`,
+                  correct: g.is_correct || (g.titleCorrect && g.artistCorrect)
+                })));
+                setRemaining(6 - statsData.todayGuesses.length);
+                
+                // Fetch song info if won
+                if (statsData.todayWon) {
+                  try {
+                    const solRes = await fetch("/api/game/solution", { cache: "no-store" });
+                    if (solRes.ok) {
+                      const sol = await solRes.json();
+                      if (sol?.artist && sol?.title) {
+                        setSongInfo({ artist: sol.artist, title: sol.title });
+                      }
+                    }
+                  } catch {}
+                }
+                
+                // Generate share text
+                const guessCount = statsData.todayGuesses.length;
+                const shareEmojis = statsData.todayGuesses.map((g: any) => (g.is_correct || (g.titleCorrect && g.artistCorrect)) ? '🟩' : '🟥').join('');
+                const shareText = `K-Dle ${new Date().toISOString().split('T')[0]} ${guessCount}/6\n\n${shareEmojis}\n\nPlay at ${window.location.origin}\nLeaderboard: ${window.location.origin}/leaderboard`;
+                setShareText(shareText);
+              }
+            }
+
+            // Load user rank
+            const leaderboardRes = await fetch('/api/leaderboard?type=current_streak&limit=100', {
+              headers: { Authorization: `Bearer ${data.session.access_token}` }
+            });
+            if (leaderboardRes.ok) {
+              const leaderboard = await leaderboardRes.json();
               const userRank = leaderboard.leaderboard.findIndex((entry: any) => entry.email === user.email) + 1;
               setUserRank(userRank > 0 ? userRank : null);
             }
@@ -170,6 +216,9 @@ export default function Home() {
       }
       if (json.correct) {
         setHint({ level: 999, text: "Correct!" });
+        setGameCompleted(true);
+        setGameWon(true);
+        
         try {
           // Submit game result to database
           const supabase = supabaseBrowser();
@@ -213,16 +262,19 @@ export default function Home() {
             const solRes = await fetch("/api/game/solution", { cache: "no-store" });
             if (solRes.ok) {
               const sol = await solRes.json();
-              if (sol?.artist && sol?.title) solutionLabel = `${sol.artist} – ${sol.title}`;
+              if (sol?.artist && sol?.title) {
+                solutionLabel = `${sol.artist} – ${sol.title}`;
+                setSongInfo({ artist: sol.artist, title: sol.title });
+              }
             }
           } catch {}
           // Build share text using server-returned remaining_guesses to avoid stale state
           const attempts = Math.max(1, (today?.max_guesses ?? 6) - (json.remaining_guesses ?? 0));
           const total = today?.max_guesses ?? 6;
           const date = today?.date ?? "";
-          const rows = (attempts > 1 ? new Array(attempts - 1).fill("⬜") : [])
+          const rows = (attempts > 1 ? new Array(attempts - 1).fill("🟥") : [])
             .concat(["🟩"]) 
-            .join("\n");
+            .join("");
           const header = solutionLabel
             ? `K‑Dle ${date} — ${attempts}/${total}`
             : `K‑Dle ${date} — ${attempts}/${total}`;
@@ -343,13 +395,14 @@ export default function Home() {
                   placeholder="Type your guess (Artist - Song)"
                   className="flex-1 rounded-lg border border-foreground/15 bg-background/70 px-3 py-2 outline-none focus:ring-2 focus:ring-fuchsia-400"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && guess.trim() && !submitting) submitGuess();
+                    if (e.key === "Enter" && guess.trim() && !submitting && !gameCompleted) submitGuess();
                   }}
+                  disabled={gameCompleted}
                 />
                 <button
                   type="button"
                   className="rounded-lg border border-foreground/10 bg-foreground text-background px-4 py-2 disabled:opacity-50"
-                  disabled={!guess.trim() || submitting || (remaining !== null && remaining <= 0) || (hint?.level === 999)}
+                  disabled={!guess.trim() || submitting || gameCompleted || (remaining !== null && remaining <= 0) || (hint?.level === 999)}
                   onClick={submitGuess}
                 >
                   {submitting ? "..." : "Guess"}
@@ -385,24 +438,70 @@ export default function Home() {
                 </div>
               )}
 
-              {shareText && (
-                <div className="w-full mt-3 rounded-lg border border-foreground/10 p-3 text-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="font-medium">Share your result</div>
+              {/* Share button and completion message */}
+              {gameCompleted && (
+                <div className="w-full space-y-4">
+                  <div className="text-center p-4 rounded-lg bg-gradient-to-r from-fuchsia-50 to-indigo-50 dark:from-fuchsia-900/20 dark:to-indigo-900/20 border border-fuchsia-200 dark:border-fuchsia-800">
+                    <h3 className="text-lg font-semibold mb-2">
+                      {gameWon ? "🎉 Congratulations!" : "😔 Better luck tomorrow!"}
+                    </h3>
+                    <p className="text-sm text-foreground/70 mb-3">
+                      {gameWon 
+                        ? `You got it in ${guesses.length} guess${guesses.length === 1 ? '' : 'es'}!`
+                        : "You've used all your guesses for today."
+                      }
+                    </p>
+                    
+                    {/* Song information */}
+                    {(gameWon && songInfo) || (!gameWon) ? (
+                      <div className="flex items-center justify-center gap-3 p-3 rounded-lg bg-white/50 dark:bg-black/20">
+                        {today?.album_image && (
+                          <img
+                            src={today.album_image}
+                            alt="Album art"
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                        )}
+                        <div className="text-left">
+                          <div className="font-semibold text-sm">
+                            {songInfo ? `${songInfo.artist} - ${songInfo.title}` : "Song will be revealed after completion"}
+                          </div>
+                          {songInfo && (
+                            <div className="text-xs text-foreground/60 mt-1">
+                              Today's K-Dle song
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  
+                  {shareText && (
                     <button
-                      className="text-xs rounded border border-foreground/15 px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"
+                      type="button"
+                      className="w-full rounded-lg bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white py-3 px-4 font-medium hover:from-fuchsia-600 hover:to-indigo-600 transition-all"
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(shareText);
                           setCopied(true);
-                          setTimeout(() => setCopied(false), 1500);
-                        } catch {}
+                          setTimeout(() => setCopied(false), 2000);
+                        } catch {
+                          // Fallback for browsers that don't support clipboard API
+                          const textArea = document.createElement('textarea');
+                          textArea.value = shareText;
+                          document.body.appendChild(textArea);
+                          textArea.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(textArea);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }
                       }}
                     >
-                      Copy
+                      <Sparkles className="inline w-4 h-4 mr-2" />
+                      Share your result
                     </button>
-                  </div>
-                  <pre className="whitespace-pre-wrap text-foreground/80 text-xs">{shareText}</pre>
+                  )}
                 </div>
               )}
               <p className="text-xs text-foreground/60">{today?.max_guesses ?? 6} guesses total. Hints unlock after each wrong guess.</p>
@@ -432,8 +531,24 @@ export default function Home() {
                   className="text-xs rounded border border-foreground/15 px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"
                   onClick={async () => {
                     try {
-                      const sres = await fetch("/api/user/stats", { cache: "no-store" });
-                      if (sres.ok) setStats(await sres.json());
+                      const supabase = supabaseBrowser();
+                      const { data: session } = await supabase.auth.getSession();
+                      
+                      if (session?.session?.access_token) {
+                        const sres = await fetch("/api/game/stats", { 
+                          cache: "no-store",
+                          headers: { Authorization: `Bearer ${session.session.access_token}` }
+                        });
+                        if (sres.ok) {
+                          const statsData = await sres.json();
+                          setStats({
+                            streak: statsData.stats.streak,
+                            longest_streak: statsData.stats.longest_streak,
+                            total_games: statsData.stats.total_games,
+                            win_rate: statsData.stats.total_games > 0 ? Math.round((statsData.stats.total_wins / statsData.stats.total_games) * 100) : 0
+                          });
+                        }
+                      }
                     } catch {}
                   }}
                 >
@@ -456,7 +571,7 @@ export default function Home() {
                   </div>
                   <div className="rounded-lg border border-foreground/10 p-3">
                     <div className="text-foreground/60">Win rate</div>
-                    <div className="text-lg font-semibold">{Math.round((stats.win_rate || 0) * 100)}%</div>
+                    <div className="text-lg font-semibold">{stats.win_rate}%</div>
                   </div>
                 </div>
               )}
@@ -505,6 +620,10 @@ export default function Home() {
                   setGuesses([]);
                   setHint(null);
                   setRemaining(json.max_guesses ?? 6);
+                  setGameCompleted(false);
+                  setGameWon(false);
+                  setShareText(null);
+                  setSongInfo(null);
                   setError(null);
                 } catch (e: any) {
                   setError(e?.message || "Failed to reset");

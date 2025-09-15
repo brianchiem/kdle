@@ -48,6 +48,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No song scheduled for today" }, { status: 404 });
     }
 
+    // Store guesses in the original format but ensure we have the data we need
+    const guessesWithText = guesses.map((g, index) => ({
+      ...g,
+      guess_text: `${g.artist}${g.title ? ' - ' + g.title : ''}`,
+      is_correct: g.titleCorrect && g.artistCorrect, // Both must be correct for a win
+      attempt_number: index + 1
+    }));
+
     // Upsert game result
     const { error: gameError } = await supabase
       .from('game_results')
@@ -55,7 +63,7 @@ export async function POST(req: Request) {
         user_id: user.id,
         date: today,
         song_id: dailySong.song_id,
-        guesses,
+        guesses: guessesWithText,
         completed,
         won,
         attempts: guesses.length,
