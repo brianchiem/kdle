@@ -31,6 +31,29 @@ export async function GET(req: Request) {
       .eq('date', today)
       .single();
 
+    // If user has stats, and last update was over 24 hours ago, and they haven't completed today's game,
+    // reset the current streak to 0. This handles missed days.
+    if (stats && stats.updated_at && !todayResult?.completed) {
+      try {
+        const updatedAt = new Date(stats.updated_at);
+        const now = new Date();
+        const hoursSinceUpdate = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceUpdate > 24 && stats.streak > 0) {
+          const { error: resetErr } = await supabase
+            .from('user_stats')
+            .update({ streak: 0, updated_at: now.toISOString() })
+            .eq('user_id', user.id);
+          if (!resetErr) {
+            // Reflect reset streak in the response
+            if (stats) {
+              stats.streak = 0;
+              stats.updated_at = now.toISOString();
+            }
+          }
+        }
+      } catch {}
+    }
+
     return NextResponse.json({
       stats: stats || {
         streak: 0,

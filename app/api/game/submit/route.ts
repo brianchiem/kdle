@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { supabaseServerWithAuth } from "@/lib/supabaseClient";
-import { todayUTC } from "@/lib/date";
+import { todayPST } from "@/lib/date";
 import { rateLimit, getRateLimitHeaders } from "@/lib/rate-limit";
 
 const GuessSchema = z.object({
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     const { guesses, completed, won } = parsed.data;
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayPST();
 
     // Get today's song
     const { data: dailySong } = await supabase
@@ -103,9 +103,22 @@ export async function POST(req: Request) {
     if (currentStats) {
       newTotalGames = currentStats.total_games + 1;
       newTotalWins = currentStats.total_wins + (won ? 1 : 0);
-      
+
+      // Determine baseline streak, resetting if last update was >24h ago
+      let baselineStreak = currentStats.streak || 0;
+      try {
+        if (currentStats.updated_at) {
+          const updatedAt = new Date(currentStats.updated_at);
+          const now = new Date();
+          const hoursSinceUpdate = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
+          if (hoursSinceUpdate > 24) {
+            baselineStreak = 0;
+          }
+        }
+      } catch {}
+
       if (won) {
-        newStreak = currentStats.streak + 1;
+        newStreak = baselineStreak + 1;
         newLongestStreak = Math.max(currentStats.longest_streak, newStreak);
       } else {
         newStreak = 0;
